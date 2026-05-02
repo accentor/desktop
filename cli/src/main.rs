@@ -18,6 +18,9 @@ enum Command {
         server_url: String,
         username: String,
     },
+    Play {
+        track_id: u64,
+    },
 }
 
 #[tokio::main]
@@ -34,6 +37,18 @@ async fn main() -> Result<(), Error> {
             Ok(status) => {
                 println!("Logged in to {}", status.server_url);
                 println!("User id: {}", status.user_id);
+                match status.playing_track_id {
+                    Some(id) => {
+                        let ms = status.playing_position_ms.unwrap_or(0);
+                        println!(
+                            "Playing track {} ({}:{:02})",
+                            id,
+                            ms / 60_000,
+                            ms / 1_000 % 60
+                        );
+                    }
+                    None => println!("Not playing"),
+                }
             }
             Err(err) => {
                 println!("{}", err)
@@ -52,6 +67,10 @@ async fn main() -> Result<(), Error> {
                 Err(msg) => anyhow::bail!(msg),
             }
         }
+        Command::Play { track_id } => match client.play(context::current(), track_id).await? {
+            Ok(()) => println!("Playing track {}", track_id),
+            Err(msg) => anyhow::bail!(msg),
+        },
     }
 
     Ok(())

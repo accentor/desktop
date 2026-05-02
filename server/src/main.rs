@@ -1,3 +1,5 @@
+mod playback;
+
 use std::sync::{Arc, Mutex};
 
 use accentor_api::{AuthTokenWithToken, create_auth_token};
@@ -5,6 +7,7 @@ use accentor_communication::{Communication, Status};
 use accentor_utils::{get_data_path, get_socket_path};
 use anyhow::Error;
 use futures::{future, prelude::*};
+use playback::Playback;
 use serde::{Deserialize, Serialize};
 use tarpc::{
     context,
@@ -24,6 +27,7 @@ struct StoredToken {
 #[derive(Clone)]
 struct AccentorServer {
     state: Arc<Mutex<Option<StoredToken>>>,
+    playback: Playback,
 }
 
 impl Communication for AccentorServer {
@@ -61,12 +65,29 @@ impl Communication for AccentorServer {
 
     async fn status(self, _: context::Context) -> Result<Status, String> {
         match &*self.state.lock().unwrap() {
-            Some(stored) => Ok(Status {
-                server_url: stored.server_url.clone(),
-                user_id: stored.token.user_id,
-            }),
+            Some(stored) => {
+                let playing = self.playback.current_playing();
+                Ok(Status {
+                    server_url: stored.server_url.clone(),
+                    user_id: stored.token.user_id,
+                    playing_track_id: playing.map(|(id, _)| id),
+                    playing_position_ms: playing.map(|(_, pos)| pos.as_millis() as u64),
+                })
+            }
             None => Err("Not logged in".to_string()),
         }
+    }
+
+    async fn play(self, _: context::Context, track_id: u64) -> Result<(), String> {
+        let (server_url, token) = {
+            let guard = self.state.lock().unwrap();
+            let stored = guard.as_ref().ok_or("Not logged in")?;
+            (stored.server_url.clone(), stored.token.token.clone())
+        };
+        self.playback
+            .play(&server_url, token, track_id)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -81,6 +102,7 @@ async fn main() -> Result<(), Error> {
         Err(e) => return Err(e.into()),
     };
     let state = Arc::new(Mutex::new(initial));
+    let playback = Playback::spawn()?;
 
     if let Some(parent) = socket_path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -101,6 +123,7 @@ async fn main() -> Result<(), Error> {
         .map(|channel| {
             let server = AccentorServer {
                 state: state.clone(),
+                playback: playback.clone(),
             };
             channel.execute(server.serve()).for_each(|f| async move {
                 tokio::spawn(f);
