@@ -4,9 +4,12 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+accentor-api = { workspace = true }
 accentor-communication = { workspace = true }
 accentor-utils = { workspace = true }
 anyhow = { workspace = true }
 futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 tarpc = { workspace = true }
 tokio = { workspace = true }

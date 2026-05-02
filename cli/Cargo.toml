@@ -7,5 +7,7 @@ edition.workspace = true
 accentor-communication = { workspace = true }
 accentor-utils = { workspace = true }
 anyhow = { workspace = true }
+clap = { workspace = true }
+rpassword = { workspace = true }
 tarpc = { workspace = true }
 tokio = { workspace = true }
