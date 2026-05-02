@@ -1,0 +1,11 @@
+[package]
+name = "accentor-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+accentor-communication = { workspace = true }
+accentor-utils = { workspace = true }
+anyhow = { workspace = true }
+tarpc = { workspace = true }
+tokio = { workspace = true }
