@@ -27,6 +27,8 @@
               inherit version;
               src = ./.;
               cargoLock.lockFile = ./Cargo.lock;
+              nativeBuildInputs = [ pkgs.pkg-config ];
+              buildInputs = [ pkgs.alsa-lib ];
             };
           };
           devShells = rec {
@@ -35,8 +37,8 @@
               name = "Accentor Desktop";
               imports = [ "${inputs.devshell}/extra/language/c.nix" "${inputs.devshell}/extra/language/rust.nix" ];
               language.c = {
-                includes = with pkgs; [ openssl ];
-                libraries = with pkgs; [ openssl ];
+                includes = with pkgs; [ openssl alsa-lib ];
+                libraries = with pkgs; [ openssl alsa-lib ];
               };
             };
           };

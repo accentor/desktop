@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use anyhow::{Error, bail};
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +25,25 @@ struct CreateAuthTokenNested<'a> {
 
 const USER_AGENT: &str = concat!("accentord/", env!("CARGO_PKG_VERSION"));
 
+static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .build()
+        .expect("failed to build reqwest client")
+});
+
+pub fn http_client() -> &'static reqwest::Client {
+    &CLIENT
+}
+
+fn endpoint(server_url: &str, path: &str) -> String {
+    format!("{}/api/{}", server_url.trim_end_matches('/'), path)
+}
+
+pub fn track_audio_url(server_url: &str, track_id: u64) -> Result<reqwest::Url, Error> {
+    Ok(endpoint(server_url, &format!("tracks/{}/audio", track_id)).parse()?)
+}
+
 pub async fn create_auth_token(
     server_url: &str,
     name: &str,
@@ -36,11 +57,8 @@ pub async fn create_auth_token(
         },
     };
 
-    let response = reqwest::Client::new()
-        .post(format!(
-            "{}/api/auth_tokens",
-            server_url.trim_end_matches('/')
-        ))
+    let response = CLIENT
+        .post(endpoint(server_url, "auth_tokens"))
         .json(&body)
         .send()
         .await?;
