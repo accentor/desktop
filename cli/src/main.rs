@@ -13,7 +13,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    Status,
     Login {
         server_url: String,
         username: String,
@@ -21,6 +20,8 @@ enum Command {
     Play {
         track_id: u64,
     },
+    Status,
+    Sync,
 }
 
 #[tokio::main]
@@ -43,27 +44,6 @@ async fn main() -> Result<(), Error> {
     .spawn();
 
     match cli.command {
-        Command::Status => match client.status(context::current()).await? {
-            Ok(status) => {
-                println!("Logged in to {}", status.server_url);
-                println!("User id: {}", status.user_id);
-                match status.playing_track_id {
-                    Some(id) => {
-                        let ms = status.playing_position_ms.unwrap_or(0);
-                        println!(
-                            "Playing track {} ({}:{:02})",
-                            id,
-                            ms / 60_000,
-                            ms / 1_000 % 60
-                        );
-                    }
-                    None => println!("Not playing"),
-                }
-            }
-            Err(err) => {
-                println!("{}", err)
-            }
-        },
         Command::Login {
             server_url,
             username,
@@ -79,6 +59,43 @@ async fn main() -> Result<(), Error> {
         }
         Command::Play { track_id } => match client.play(context::current(), track_id).await? {
             Ok(()) => println!("Playing track {}", track_id),
+            Err(msg) => anyhow::bail!(msg),
+        },
+        Command::Status => match client.status(context::current()).await? {
+            Ok(status) => {
+                println!("Logged in to {}", status.server_url);
+                match &status.user_name {
+                    Some(name) => println!("User: {}", name),
+                    None => println!("User: unknown"),
+                };
+                match status.playing_track_id {
+                    Some(id) => {
+                        let ms = status.playing_position_ms.unwrap_or(0);
+                        println!(
+                            "Playing track {} ({}:{:02})",
+                            id,
+                            ms / 60_000,
+                            ms / 1_000 % 60
+                        );
+                    }
+                    None => println!("Not playing"),
+                }
+                if status.sync_in_progress {
+                    println!("Sync: in progress");
+                } else if let Some(err) = &status.last_sync_error {
+                    println!("Last sync failed: {err}");
+                } else if let Some(ts) = status.last_sync_at {
+                    println!("Last sync: {ts}");
+                } else {
+                    println!("Sync: never run");
+                }
+            }
+            Err(err) => {
+                println!("{}", err)
+            }
+        },
+        Command::Sync => match client.sync(context::current()).await? {
+            Ok(()) => println!("Started sync"),
             Err(msg) => anyhow::bail!(msg),
         },
     }

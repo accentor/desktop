@@ -136,7 +136,7 @@ impl Playback {
     }
 
     pub async fn play(&self, server_url: &str, token: String, track_id: u64) -> Result<(), Error> {
-        let url = accentor_api::track_audio_url(server_url, track_id)?;
+        let url = accentor_api::tracks::track_audio_url(server_url, track_id)?;
 
         let stream = HttpStream::new(AuthClient { token }, url)
             .await

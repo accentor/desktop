@@ -14,5 +14,6 @@ rodio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 stream-download = { workspace = true }
+sqlx = { workspace = true }
 tarpc = { workspace = true }
 tokio = { workspace = true }

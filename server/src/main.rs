@@ -1,8 +1,10 @@
+mod db;
 mod playback;
 
 use std::sync::{Arc, Mutex};
 
-use accentor_api::{AuthTokenWithToken, create_auth_token};
+use accentor_api::auth_tokens::{AuthTokenWithToken, create_auth_token};
+use accentor_api::users::fetch_users_page;
 use accentor_communication::{Communication, Status};
 use accentor_utils::{get_data_path, get_socket_path};
 use anyhow::Error;
@@ -18,6 +20,20 @@ use tokio::signal::unix::{SignalKind, signal};
 
 const AUTH_TOKEN_FILENAME: &str = "auth_token.json";
 
+fn unix_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+#[derive(Default)]
+struct SyncState {
+    in_progress: bool,
+    last_completed_at: Option<u64>,
+    last_error: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct StoredToken {
     server_url: String,
@@ -28,12 +44,14 @@ struct StoredToken {
 struct AccentorServer {
     state: Arc<Mutex<Option<StoredToken>>>,
     playback: Playback,
+    db: db::Database,
+    sync_state: Arc<Mutex<SyncState>>,
 }
 
 impl Communication for AccentorServer {
     async fn login(
         self,
-        _: context::Context,
+        context: context::Context,
         server_url: String,
         name: String,
         password: String,
@@ -60,22 +78,9 @@ impl Communication for AccentorServer {
 
         *self.state.lock().unwrap() = Some(stored);
 
-        Ok(())
-    }
+        self.sync(context).await?;
 
-    async fn status(self, _: context::Context) -> Result<Status, String> {
-        match &*self.state.lock().unwrap() {
-            Some(stored) => {
-                let playing = self.playback.current_playing();
-                Ok(Status {
-                    server_url: stored.server_url.clone(),
-                    user_id: stored.token.user_id,
-                    playing_track_id: playing.map(|(id, _)| id),
-                    playing_position_ms: playing.map(|(_, pos)| pos.as_millis() as u64),
-                })
-            }
-            None => Err("Not logged in".to_string()),
-        }
+        Ok(())
     }
 
     async fn play(self, _: context::Context, track_id: u64) -> Result<(), String> {
@@ -88,6 +93,81 @@ impl Communication for AccentorServer {
             .play(&server_url, token, track_id)
             .await
             .map_err(|e| e.to_string())
+    }
+
+    async fn status(self, _: context::Context) -> Result<Status, String> {
+        let (server_url, user_id) = {
+            let guard = self.state.lock().unwrap();
+            let stored = guard.as_ref().ok_or("Not logged in")?;
+            (stored.server_url.clone(), stored.token.user_id)
+        };
+        let user_name = self
+            .db
+            .user_name(user_id)
+            .await
+            .map_err(|e| e.to_string())?;
+        let playing = self.playback.current_playing();
+        let sync = self.sync_state.lock().unwrap();
+        Ok(Status {
+            server_url,
+            user_name,
+            playing_track_id: playing.map(|(id, _)| id),
+            playing_position_ms: playing.map(|(_, pos)| pos.as_millis() as u64),
+            sync_in_progress: sync.in_progress,
+            last_sync_at: sync.last_completed_at,
+            last_sync_error: sync.last_error.clone(),
+        })
+    }
+
+    async fn sync(self, _: context::Context) -> Result<(), String> {
+        let (server_url, token) = {
+            let guard = self.state.lock().unwrap();
+            let stored = guard.as_ref().ok_or("Not logged in")?;
+            (stored.server_url.clone(), stored.token.token.clone())
+        };
+
+        {
+            let mut s = self.sync_state.lock().unwrap();
+            if s.in_progress {
+                return Err("Sync already in progress".to_string());
+            }
+            s.in_progress = true;
+        }
+
+        let db = self.db.clone();
+        let sync_state = self.sync_state.clone();
+        tokio::spawn(async move {
+            let started_at_ms = unix_ms();
+            let result: anyhow::Result<()> = async {
+                let mut page: u32 = 1;
+                loop {
+                    let p = fetch_users_page(&server_url, &token, page).await?;
+                    db.upsert_users(&p.users, unix_ms()).await?;
+                    if page >= p.total_pages {
+                        break;
+                    }
+                    page += 1;
+                }
+                db.prune_users(started_at_ms).await?;
+                Ok(())
+            }
+            .await;
+
+            let mut s = sync_state.lock().unwrap();
+            s.in_progress = false;
+            match result {
+                Ok(()) => {
+                    s.last_completed_at = Some(unix_ms() as u64 / 1000);
+                    s.last_error = None;
+                }
+                Err(e) => {
+                    eprintln!("sync failed: {e:#}");
+                    s.last_error = Some(format!("{e:#}"));
+                }
+            }
+        });
+
+        Ok(())
     }
 }
 
@@ -103,6 +183,8 @@ async fn main() -> Result<(), Error> {
     };
     let state = Arc::new(Mutex::new(initial));
     let playback = Playback::spawn()?;
+    let db = db::Database::open(&get_data_path().join("accentor.db")).await?;
+    let sync_state = Arc::new(Mutex::new(SyncState::default()));
 
     if let Some(parent) = socket_path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -124,6 +206,8 @@ async fn main() -> Result<(), Error> {
             let server = AccentorServer {
                 state: state.clone(),
                 playback: playback.clone(),
+                db: db.clone(),
+                sync_state: sync_state.clone(),
             };
             channel.execute(server.serve()).for_each(|f| async move {
                 tokio::spawn(f);
