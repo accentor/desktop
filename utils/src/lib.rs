@@ -16,3 +16,19 @@ fn socket_dir() -> PathBuf {
 pub fn get_socket_path() -> PathBuf {
     socket_dir().join("accentord.socket")
 }
+
+#[cfg(debug_assertions)]
+fn data_dir() -> PathBuf {
+    PathBuf::from(std::env::var("PRJ_DATA_DIR").unwrap_or(".".to_string()))
+}
+
+#[cfg(not(debug_assertions))]
+fn data_dir() -> PathBuf {
+    dirs::data_local_dir()
+        .or_else(|| dirs::home_dir().map(|h| h.join(".local/share")))
+        .expect("could not determine a data directory")
+}
+
+pub fn get_data_path() -> PathBuf {
+    data_dir().join("accentor")
+}

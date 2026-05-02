@@ -34,6 +34,10 @@
             accentor-desktop = pkgs.devshell.mkShell {
               name = "Accentor Desktop";
               imports = [ "${inputs.devshell}/extra/language/c.nix" "${inputs.devshell}/extra/language/rust.nix" ];
+              language.c = {
+                includes = with pkgs; [ openssl ];
+                libraries = with pkgs; [ openssl ];
+              };
             };
           };
         }
