@@ -30,7 +30,17 @@ async fn main() -> Result<(), Error> {
     let socket_path = get_socket_path();
     let mut transport = tarpc::serde_transport::unix::connect(&socket_path, Json::default);
     transport.config_mut().max_frame_length(usize::MAX);
-    let client = CommunicationClient::new(client::Config::default(), transport.await?).spawn();
+    let client = CommunicationClient::new(
+        client::Config::default(),
+        transport.await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                anyhow::anyhow!("Could not connect to accentord: socket {} does not exist. Is the daemon running?", socket_path.display())
+            } else {
+                e.into()
+            }
+        })?,
+    )
+    .spawn();
 
     match cli.command {
         Command::Status => match client.status(context::current()).await? {
