@@ -7,18 +7,19 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+accentor-api = { path = "api" }
+accentor-communication = { path = "communication" }
+accentor-utils = { path = "utils" }
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 dirs = "6.0"
 futures = "0.3"
 reqwest = { version = "0.13", features = ["json", "stream"] }
 rodio = "0.22"
-stream-download = { version = "0.24", features = ["reqwest", "temp-storage"] }
 rpassword = "7"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate"] }
+stream-download = { version = "0.24", features = ["reqwest", "temp-storage"] }
 tarpc = { version = "0.37", features = ["serde-transport", "serde-transport-json", "unix"] }
 tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal"] }
-accentor-api = { path = "api" }
-accentor-communication = { path = "communication" }
-accentor-utils = { path = "utils" }
