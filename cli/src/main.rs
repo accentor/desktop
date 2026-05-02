@@ -63,11 +63,20 @@ async fn main() -> Result<(), Error> {
         },
         Command::Status => match client.status(context::current()).await? {
             Ok(status) => {
-                println!("Logged in to {}", status.server_url);
-                match &status.user_name {
-                    Some(name) => println!("User: {}", name),
-                    None => println!("User: unknown"),
-                };
+                println!(
+                    "Logged in to {} as {}",
+                    status.server_url,
+                    status.user_name.unwrap_or_else(|| "unknown".to_string())
+                );
+                if status.sync_in_progress {
+                    println!("Sync: in progress");
+                } else if let Some(err) = &status.last_sync_error {
+                    println!("Last sync failed: {err}");
+                } else if let Some(ts) = status.last_sync_at {
+                    println!("Last sync: {ts}");
+                } else {
+                    println!("Sync: never run");
+                }
                 match status.playing_track_id {
                     Some(id) => {
                         let ms = status.playing_position_ms.unwrap_or(0);
@@ -79,15 +88,6 @@ async fn main() -> Result<(), Error> {
                         );
                     }
                     None => println!("Not playing"),
-                }
-                if status.sync_in_progress {
-                    println!("Sync: in progress");
-                } else if let Some(err) = &status.last_sync_error {
-                    println!("Last sync failed: {err}");
-                } else if let Some(ts) = status.last_sync_at {
-                    println!("Last sync: {ts}");
-                } else {
-                    println!("Sync: never run");
                 }
             }
             Err(err) => {
