@@ -1,12 +1,13 @@
 mod db;
 mod playback;
 
+use std::future::Future;
 use std::sync::{Arc, Mutex};
 
+use accentor_api::{Page, fetch_page};
 use accentor_api::auth_tokens::{AuthTokenWithToken, create_auth_token};
-use accentor_api::users::fetch_users_page;
 use accentor_communication::{Communication, Status};
-use accentor_utils::{get_data_path, get_socket_path};
+use accentor_utils::{get_data_path, get_socket_path, unix_ms};
 use anyhow::Error;
 use futures::{future, prelude::*};
 use playback::Playback;
@@ -20,11 +21,25 @@ use tokio::signal::unix::{SignalKind, signal};
 
 const AUTH_TOKEN_FILENAME: &str = "auth_token.json";
 
-fn unix_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
+async fn sync_resource<T, FF, UF, PF>(
+    db: db::Database,
+    started_at_ms: i64,
+    fetch: impl Fn(u32) -> FF,
+    upsert: impl Fn(db::Database, Vec<T>, i64) -> UF,
+    prune: impl FnOnce(db::Database, i64) -> PF,
+) -> anyhow::Result<()>
+where
+    FF: Future<Output = anyhow::Result<Page<T>>>,
+    UF: Future<Output = anyhow::Result<()>>,
+    PF: Future<Output = anyhow::Result<()>>,
+{
+    let first = fetch(1).await?;
+    upsert(db.clone(), first.items, unix_ms()).await?;
+    for page in 2..=first.total_pages {
+        let p = fetch(page).await?;
+        upsert(db.clone(), p.items, unix_ms()).await?;
+    }
+    prune(db, started_at_ms).await
 }
 
 #[derive(Default)]
@@ -138,20 +153,69 @@ impl Communication for AccentorServer {
         let sync_state = self.sync_state.clone();
         tokio::spawn(async move {
             let started_at_ms = unix_ms();
-            let result: anyhow::Result<()> = async {
-                let mut page: u32 = 1;
-                loop {
-                    let p = fetch_users_page(&server_url, &token, page).await?;
-                    db.upsert_users(&p.users, unix_ms()).await?;
-                    if page >= p.total_pages {
-                        break;
-                    }
-                    page += 1;
-                }
-                db.prune_users(started_at_ms).await?;
-                Ok(())
-            }
-            .await;
+            let result = tokio::try_join!(
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "users", p),
+                    |db, items, ts| async move { db.upsert_users(&items, ts).await },
+                    |db, ts| async move { db.prune_users(ts).await },
+                ),
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "artists", p),
+                    |db, items, ts| async move { db.upsert_artists(&items, ts).await },
+                    |db, ts| async move { db.prune_artists(ts).await },
+                ),
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "genres", p),
+                    |db, items, ts| async move { db.upsert_genres(&items, ts).await },
+                    |db, ts| async move { db.prune_genres(ts).await },
+                ),
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "labels", p),
+                    |db, items, ts| async move { db.upsert_labels(&items, ts).await },
+                    |db, ts| async move { db.prune_labels(ts).await },
+                ),
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "codec_conversions", p),
+                    |db, items, ts| async move { db.upsert_codec_conversions(&items, ts).await },
+                    |db, ts| async move { db.prune_codec_conversions(ts).await },
+                ),
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "auth_tokens", p),
+                    |db, items, ts| async move { db.upsert_auth_tokens(&items, ts).await },
+                    |db, ts| async move { db.prune_auth_tokens(ts).await },
+                ),
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "albums", p),
+                    |db, items, ts| async move { db.upsert_albums(&items, ts).await },
+                    |db, ts| async move { db.prune_albums(ts).await },
+                ),
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "tracks", p),
+                    |db, items, ts| async move { db.upsert_tracks(&items, ts).await },
+                    |db, ts| async move { db.prune_tracks(ts).await },
+                ),
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "plays", p),
+                    |db, items, ts| async move { db.upsert_plays(&items, ts).await },
+                    |db, ts| async move { db.prune_plays(ts).await },
+                ),
+                sync_resource(
+                    db.clone(), started_at_ms,
+                    |p| fetch_page(&server_url, &token, "playlists", p),
+                    |db, items, ts| async move { db.upsert_playlists(&items, ts).await },
+                    |db, ts| async move { db.prune_playlists(ts).await },
+                ),
+            )
+            .map(|_| ());
 
             let mut s = sync_state.lock().unwrap();
             s.in_progress = false;
