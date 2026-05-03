@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use sha2::{Digest, Sha256};
+
 #[cfg(debug_assertions)]
 fn socket_dir() -> PathBuf {
     PathBuf::from(std::env::var("PRJ_DATA_DIR").unwrap_or(".".to_string()))
@@ -50,16 +52,7 @@ pub fn get_cache_path() -> PathBuf {
 }
 
 fn url_to_filename(url: &str) -> String {
-    let mut out = String::with_capacity(url.len());
-    for b in url.bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_') {
-            out.push(b as char);
-        } else {
-            use std::fmt::Write;
-            let _ = write!(out, "%{b:02X}");
-        }
-    }
-    out
+    Sha256::digest(url).map(|x| format!("{:0x}", x)).join("")
 }
 
 pub async fn fetch_cover(url: &str) -> anyhow::Result<Vec<u8>> {

@@ -7,4 +7,5 @@ edition.workspace = true
 accentor-api = { workspace = true }
 anyhow = { workspace = true }
 dirs = { workspace = true }
+sha2 = { workspace = true }
 tokio = { workspace = true }
