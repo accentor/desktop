@@ -199,6 +199,33 @@ impl Database {
         }))
     }
 
+    pub async fn tracks(&self, page: u32, per_page: u32) -> Result<(Vec<Track>, u32)> {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tracks")
+            .fetch_one(&self.pool)
+            .await?;
+        let total_pages = (count as u32).div_ceil(per_page).max(1);
+
+        let offset = (page.saturating_sub(1)) * per_page;
+        let ids: Vec<(i64,)> = sqlx::query_as(
+            "SELECT t.id FROM tracks t \
+             JOIN albums a ON t.album_id = a.id \
+             ORDER BY a.title, t.number, t.id \
+             LIMIT ? OFFSET ?",
+        )
+        .bind(per_page as i64)
+        .bind(offset as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut items = Vec::with_capacity(ids.len());
+        for (id,) in ids {
+            if let Some(track) = self.track(id as u64).await? {
+                items.push(track);
+            }
+        }
+        Ok((items, total_pages))
+    }
+
     pub async fn prune_tracks(&self, started_at_ms: i64) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM tracks WHERE loaded_at < ?")

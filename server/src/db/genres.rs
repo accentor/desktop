@@ -31,6 +31,27 @@ impl Database {
         Ok(())
     }
 
+    pub async fn genre(&self, id: u64) -> Result<Option<Genre>> {
+        #[derive(sqlx::FromRow)]
+        struct GenreRow {
+            id: i64,
+            name: String,
+            normalized_name: String,
+        }
+
+        Ok(sqlx::query_as::<_, GenreRow>(
+            "SELECT id, name, normalized_name FROM genres WHERE id = ?",
+        )
+        .bind(id as i64)
+        .fetch_optional(&self.pool)
+        .await?
+        .map(|r| Genre {
+            id: r.id,
+            name: r.name,
+            normalized_name: r.normalized_name,
+        }))
+    }
+
     pub async fn prune_genres(&self, started_at_ms: i64) -> Result<()> {
         self.prune_simple("genres", started_at_ms).await
     }

@@ -1,4 +1,6 @@
-use accentor_communication::{CommunicationClient, PlayingTrack};
+use accentor_communication::{CommunicationClient, PlayingTrack, TrackSummary};
+
+const TRACKS_PER_PAGE: u32 = 30;
 use accentor_utils::get_socket_path;
 use anyhow::Error;
 use clap::{Parser, Subcommand};
@@ -17,11 +19,26 @@ enum Command {
         server_url: String,
         username: String,
     },
-    Play {
-        track_id: u64,
+    Track {
+        #[command(subcommand)]
+        command: TrackCommand,
     },
     Status,
     Sync,
+}
+
+#[derive(Subcommand)]
+enum TrackCommand {
+    Play {
+        track_id: u64,
+    },
+    Show {
+        track_id: u64,
+    },
+    List {
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+    },
 }
 
 #[tokio::main]
@@ -57,9 +74,32 @@ async fn main() -> Result<(), Error> {
                 Err(msg) => anyhow::bail!(msg),
             }
         }
-        Command::Play { track_id } => match client.play(context::current(), track_id).await? {
-            Ok(pt) => print_playing_track(&pt),
-            Err(msg) => anyhow::bail!(msg),
+        Command::Track { command } => match command {
+            TrackCommand::Play { track_id } => {
+                match client.play(context::current(), track_id).await? {
+                    Ok(pt) => print_playing_track(&pt),
+                    Err(msg) => anyhow::bail!(msg),
+                }
+            }
+            TrackCommand::Show { track_id } => {
+                match client.track(context::current(), track_id).await? {
+                    Ok(Some(t)) => print_track(&t),
+                    Ok(None) => anyhow::bail!("Track {track_id} not found"),
+                    Err(msg) => anyhow::bail!(msg),
+                }
+            }
+            TrackCommand::List { page } => {
+                match client
+                    .tracks(context::current(), page, TRACKS_PER_PAGE)
+                    .await?
+                {
+                    Ok(tp) => {
+                        print_tracks_table(&tp.items);
+                        println!("Page {page} of {}", tp.total_pages);
+                    }
+                    Err(msg) => anyhow::bail!(msg),
+                }
+            }
         },
         Command::Status => match client.status(context::current()).await? {
             Ok(status) => {
@@ -93,6 +133,42 @@ async fn main() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn print_track(t: &TrackSummary) {
+    let length = t
+        .length
+        .map(|s| format_duration(s as u64))
+        .unwrap_or_else(|| "?:??".to_string());
+    println!("{}: {}", t.id, t.title);
+    println!("  by {}", t.artists);
+    println!("  on {}", t.album);
+    println!("  genres: {}", t.genres);
+    println!("  ({})", length);
+}
+
+fn print_tracks_table(tracks: &[TrackSummary]) {
+    use comfy_table::presets::UTF8_FULL;
+    let mut table = comfy_table::Table::new();
+    table.load_preset(UTF8_FULL).set_header(vec![
+        "ID", "#", "Title", "Album", "Artists", "Genres", "Length",
+    ]);
+    for t in tracks {
+        let length = t
+            .length
+            .map(|s| format_duration(s as u64))
+            .unwrap_or_else(|| "?:??".to_string());
+        table.add_row(vec![
+            t.id.to_string(),
+            t.number.to_string(),
+            t.title.clone(),
+            t.album.clone(),
+            t.artists.clone(),
+            t.genres.clone(),
+            length,
+        ]);
+    }
+    println!("{table}");
 }
 
 fn print_playing_track(pt: &PlayingTrack) {

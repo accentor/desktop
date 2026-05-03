@@ -5,8 +5,9 @@ use std::future::Future;
 use std::sync::{Arc, Mutex};
 
 use accentor_api::auth_tokens::{AuthTokenWithToken, create_auth_token};
+use accentor_api::tracks::Track;
 use accentor_api::{Page, fetch_page};
-use accentor_communication::{Communication, PlayingTrack, Status};
+use accentor_communication::{Communication, PlayingTrack, Status, TrackPage, TrackSummary};
 use accentor_utils::{get_data_path, get_socket_path, unix_ms};
 use anyhow::Error;
 use futures::{future, prelude::*};
@@ -98,6 +99,49 @@ impl AccentorServer {
             length,
         })
     }
+
+    async fn build_track_summary(&self, track: Track) -> Result<TrackSummary, String> {
+        let album = match self
+            .db
+            .album(track.album_id as u64)
+            .await
+            .map_err(|e| e.to_string())?
+        {
+            Some(a) => a.title,
+            None => String::new(),
+        };
+
+        let mut track_artists: Vec<_> = track.track_artists.iter().filter(|a| !a.hidden).collect();
+        track_artists.sort_by_key(|a| a.order);
+        let artists = track_artists
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect::<Vec<_>>()
+            .join(" / ");
+
+        let mut genre_names = Vec::with_capacity(track.genre_ids.len());
+        for genre_id in &track.genre_ids {
+            if let Some(g) = self
+                .db
+                .genre(*genre_id as u64)
+                .await
+                .map_err(|e| e.to_string())?
+            {
+                genre_names.push(g.name);
+            }
+        }
+        let genres = genre_names.join(" / ");
+
+        Ok(TrackSummary {
+            id: track.id as u64,
+            number: track.number,
+            title: track.title,
+            album,
+            artists,
+            genres,
+            length: track.length,
+        })
+    }
 }
 
 impl Communication for AccentorServer {
@@ -174,6 +218,35 @@ impl Communication for AccentorServer {
             last_sync_at: sync.last_completed_at,
             last_sync_error: sync.last_error.clone(),
         })
+    }
+
+    async fn track(
+        self,
+        _: context::Context,
+        track_id: u64,
+    ) -> Result<Option<TrackSummary>, String> {
+        match self.db.track(track_id).await.map_err(|e| e.to_string())? {
+            None => Ok(None),
+            Some(t) => self.build_track_summary(t).await.map(Some),
+        }
+    }
+
+    async fn tracks(
+        self,
+        _: context::Context,
+        page: u32,
+        per_page: u32,
+    ) -> Result<TrackPage, String> {
+        let (tracks, total_pages) = self
+            .db
+            .tracks(page, per_page)
+            .await
+            .map_err(|e| e.to_string())?;
+        let mut items = Vec::with_capacity(tracks.len());
+        for t in tracks {
+            items.push(self.build_track_summary(t).await?);
+        }
+        Ok(TrackPage { items, total_pages })
     }
 
     async fn sync(self, _: context::Context) -> Result<(), String> {
