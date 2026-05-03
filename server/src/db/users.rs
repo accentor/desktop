@@ -34,11 +34,28 @@ impl Database {
         self.prune_simple("users", started_at_ms).await
     }
 
-    pub async fn user_name(&self, user_id: u64) -> Result<Option<String>> {
-        let row: Option<(String,)> = sqlx::query_as("SELECT name FROM users WHERE id = ?")
-            .bind(user_id as i64)
-            .fetch_optional(&self.pool)
-            .await?;
-        Ok(row.map(|(n,)| n))
+    pub async fn user(&self, user_id: u64) -> Result<Option<User>> {
+        #[derive(sqlx::FromRow)]
+        struct UserRow {
+            id: i64,
+            name: String,
+            permission: String,
+        }
+        let Some(row) =
+            sqlx::query_as::<_, UserRow>("SELECT id, name, permission FROM users WHERE id = ?")
+                .bind(user_id as i64)
+                .fetch_optional(&self.pool)
+                .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(User {
+            id: row.id as u64,
+            name: row.name,
+            permission: row
+                .permission
+                .parse()
+                .map_err(|e: strum::ParseError| anyhow::anyhow!("{e}"))?,
+        }))
     }
 }

@@ -58,4 +58,3 @@ pub async fn create_auth_token(
 
     Ok(response.json().await?)
 }
-

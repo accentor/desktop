@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, strum::AsRefStr)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, strum::AsRefStr, strum::EnumString)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum Permission {

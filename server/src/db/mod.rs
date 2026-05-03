@@ -56,8 +56,7 @@ async fn delete_children_by_parent_ids(
     parent_ids: &[i64],
 ) -> Result<()> {
     for chunk in parent_ids.chunks(500) {
-        let mut qb =
-            QueryBuilder::new(format!("DELETE FROM {child_table} WHERE {fk_col} IN ("));
+        let mut qb = QueryBuilder::new(format!("DELETE FROM {child_table} WHERE {fk_col} IN ("));
         let mut sep = qb.separated(", ");
         for id in chunk {
             sep.push_bind(*id);

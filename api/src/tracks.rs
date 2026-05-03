@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::endpoint;
 
-#[derive(Clone, Debug, Deserialize, strum::AsRefStr)]
+#[derive(Clone, Debug, Deserialize, strum::AsRefStr, strum::EnumString)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum TrackArtistRole {

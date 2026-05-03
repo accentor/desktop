@@ -1,4 +1,4 @@
-use accentor_api::tracks::Track;
+use accentor_api::tracks::{Track, TrackArtist};
 use anyhow::Result;
 use sqlx::QueryBuilder;
 
@@ -102,6 +102,101 @@ impl Database {
 
         tx.commit().await?;
         Ok(())
+    }
+
+    pub async fn track(&self, id: u64) -> Result<Option<Track>> {
+        #[derive(sqlx::FromRow)]
+        struct TrackRow {
+            id: i64,
+            title: String,
+            normalized_title: String,
+            number: i64,
+            album_id: i64,
+            review_comment: Option<String>,
+            codec_id: Option<i64>,
+            length: Option<i64>,
+            bitrate: Option<i64>,
+            location_id: Option<i64>,
+            audio_file_id: Option<i64>,
+            filename: Option<String>,
+            sample_rate: Option<i64>,
+            bit_depth: Option<i64>,
+            created_at: String,
+            updated_at: String,
+        }
+        #[derive(sqlx::FromRow)]
+        struct TrackArtistRow {
+            artist_id: i64,
+            role: String,
+            order: i64,
+            name: String,
+            normalized_name: String,
+            hidden: bool,
+        }
+
+        let Some(row) = sqlx::query_as::<_, TrackRow>(
+            "SELECT id, title, normalized_title, number, album_id, review_comment, \
+             codec_id, length, bitrate, location_id, audio_file_id, filename, \
+             sample_rate, bit_depth, created_at, updated_at FROM tracks WHERE id = ?",
+        )
+        .bind(id as i64)
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let artist_rows = sqlx::query_as::<_, TrackArtistRow>(
+            "SELECT artist_id, role, \"order\", name, normalized_name, hidden \
+             FROM track_artists WHERE track_id = ? ORDER BY \"order\"",
+        )
+        .bind(id as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let genre_id_rows: Vec<(i64,)> =
+            sqlx::query_as("SELECT genre_id FROM track_genres WHERE track_id = ?")
+                .bind(id as i64)
+                .fetch_all(&self.pool)
+                .await?;
+
+        let track_artists = artist_rows
+            .into_iter()
+            .map(|r| -> Result<TrackArtist> {
+                Ok(TrackArtist {
+                    artist_id: r.artist_id,
+                    role: r
+                        .role
+                        .parse()
+                        .map_err(|e: strum::ParseError| anyhow::anyhow!("{e}"))?,
+                    order: r.order,
+                    name: r.name,
+                    normalized_name: r.normalized_name,
+                    hidden: r.hidden,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Some(Track {
+            id: row.id,
+            title: row.title,
+            normalized_title: row.normalized_title,
+            number: row.number,
+            album_id: row.album_id,
+            review_comment: row.review_comment,
+            genre_ids: genre_id_rows.into_iter().map(|(g,)| g).collect(),
+            codec_id: row.codec_id,
+            length: row.length,
+            bitrate: row.bitrate,
+            location_id: row.location_id,
+            audio_file_id: row.audio_file_id,
+            track_artists,
+            filename: row.filename,
+            sample_rate: row.sample_rate,
+            bit_depth: row.bit_depth,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }))
     }
 
     pub async fn prune_tracks(&self, started_at_ms: i64) -> Result<()> {

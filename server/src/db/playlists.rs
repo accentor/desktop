@@ -64,11 +64,14 @@ impl Database {
         for chunk in all_items.chunks(50) {
             let mut qb =
                 QueryBuilder::new("INSERT INTO playlist_items (playlist_id, position, item_id) ");
-            qb.push_values(chunk.iter().copied(), |mut b, (playlist_id, position, item_id)| {
-                b.push_bind(playlist_id)
-                    .push_bind(position)
-                    .push_bind(item_id);
-            });
+            qb.push_values(
+                chunk.iter().copied(),
+                |mut b, (playlist_id, position, item_id)| {
+                    b.push_bind(playlist_id)
+                        .push_bind(position)
+                        .push_bind(item_id);
+                },
+            );
             qb.build().execute(&mut *tx).await?;
         }
 

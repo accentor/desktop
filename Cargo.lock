@@ -55,6 +55,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "stream-download",
+ "strum",
  "tarpc",
  "tokio",
 ]

@@ -4,9 +4,9 @@ mod playback;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
-use accentor_api::{Page, fetch_page};
 use accentor_api::auth_tokens::{AuthTokenWithToken, create_auth_token};
-use accentor_communication::{Communication, Status};
+use accentor_api::{Page, fetch_page};
+use accentor_communication::{Communication, PlayingTrack, Status};
 use accentor_utils::{get_data_path, get_socket_path, unix_ms};
 use anyhow::Error;
 use futures::{future, prelude::*};
@@ -63,6 +63,43 @@ struct AccentorServer {
     sync_state: Arc<Mutex<SyncState>>,
 }
 
+impl AccentorServer {
+    async fn build_playing_track(&self, id: u64, position_ms: u64) -> Result<PlayingTrack, String> {
+        let (title, album, artists, length) =
+            match self.db.track(id).await.map_err(|e| e.to_string())? {
+                None => ("?".to_string(), "?".to_string(), "?".to_string(), None),
+                Some(track) => {
+                    let album_title = match self
+                        .db
+                        .album(track.album_id as u64)
+                        .await
+                        .map_err(|e| e.to_string())?
+                    {
+                        Some(a) => a.title,
+                        None => "?".to_string(),
+                    };
+                    let mut track_artists: Vec<_> =
+                        track.track_artists.iter().filter(|a| !a.hidden).collect();
+                    track_artists.sort_by_key(|a| a.order);
+                    let artists_str = track_artists
+                        .iter()
+                        .map(|a| a.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" / ");
+                    (track.title, album_title, artists_str, track.length)
+                }
+            };
+        Ok(PlayingTrack {
+            id,
+            position_ms,
+            title,
+            album,
+            artists,
+            length,
+        })
+    }
+}
+
 impl Communication for AccentorServer {
     async fn login(
         self,
@@ -98,7 +135,7 @@ impl Communication for AccentorServer {
         Ok(())
     }
 
-    async fn play(self, _: context::Context, track_id: u64) -> Result<(), String> {
+    async fn play(self, _: context::Context, track_id: u64) -> Result<PlayingTrack, String> {
         let (server_url, token) = {
             let guard = self.state.lock().unwrap();
             let stored = guard.as_ref().ok_or("Not logged in")?;
@@ -107,7 +144,8 @@ impl Communication for AccentorServer {
         self.playback
             .play(&server_url, token, track_id)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        self.build_playing_track(track_id, 0).await
     }
 
     async fn status(self, _: context::Context) -> Result<Status, String> {
@@ -118,16 +156,20 @@ impl Communication for AccentorServer {
         };
         let user_name = self
             .db
-            .user_name(user_id)
+            .user(user_id)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())?
+            .map(|u| u.name);
         let playing = self.playback.current_playing();
+        let playing_track = match playing {
+            None => None,
+            Some((id, pos)) => Some(self.build_playing_track(id, pos.as_millis() as u64).await?),
+        };
         let sync = self.sync_state.lock().unwrap();
         Ok(Status {
             server_url,
             user_name,
-            playing_track_id: playing.map(|(id, _)| id),
-            playing_position_ms: playing.map(|(_, pos)| pos.as_millis() as u64),
+            playing_track,
             sync_in_progress: sync.in_progress,
             last_sync_at: sync.last_completed_at,
             last_sync_error: sync.last_error.clone(),
@@ -155,61 +197,71 @@ impl Communication for AccentorServer {
             let started_at_ms = unix_ms();
             let result = tokio::try_join!(
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "users", p),
                     |db, items, ts| async move { db.upsert_users(&items, ts).await },
                     |db, ts| async move { db.prune_users(ts).await },
                 ),
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "artists", p),
                     |db, items, ts| async move { db.upsert_artists(&items, ts).await },
                     |db, ts| async move { db.prune_artists(ts).await },
                 ),
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "genres", p),
                     |db, items, ts| async move { db.upsert_genres(&items, ts).await },
                     |db, ts| async move { db.prune_genres(ts).await },
                 ),
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "labels", p),
                     |db, items, ts| async move { db.upsert_labels(&items, ts).await },
                     |db, ts| async move { db.prune_labels(ts).await },
                 ),
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "codec_conversions", p),
                     |db, items, ts| async move { db.upsert_codec_conversions(&items, ts).await },
                     |db, ts| async move { db.prune_codec_conversions(ts).await },
                 ),
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "auth_tokens", p),
                     |db, items, ts| async move { db.upsert_auth_tokens(&items, ts).await },
                     |db, ts| async move { db.prune_auth_tokens(ts).await },
                 ),
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "albums", p),
                     |db, items, ts| async move { db.upsert_albums(&items, ts).await },
                     |db, ts| async move { db.prune_albums(ts).await },
                 ),
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "tracks", p),
                     |db, items, ts| async move { db.upsert_tracks(&items, ts).await },
                     |db, ts| async move { db.prune_tracks(ts).await },
                 ),
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "plays", p),
                     |db, items, ts| async move { db.upsert_plays(&items, ts).await },
                     |db, ts| async move { db.prune_plays(ts).await },
                 ),
                 sync_resource(
-                    db.clone(), started_at_ms,
+                    db.clone(),
+                    started_at_ms,
                     |p| fetch_page(&server_url, &token, "playlists", p),
                     |db, items, ts| async move { db.upsert_playlists(&items, ts).await },
                     |db, ts| async move { db.prune_playlists(ts).await },

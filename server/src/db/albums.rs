@@ -1,4 +1,4 @@
-use accentor_api::albums::Album;
+use accentor_api::albums::{Album, AlbumArtist, AlbumLabel};
 use anyhow::Result;
 use sqlx::QueryBuilder;
 
@@ -102,6 +102,100 @@ impl Database {
 
         tx.commit().await?;
         Ok(())
+    }
+
+    pub async fn album(&self, id: u64) -> Result<Option<Album>> {
+        #[derive(sqlx::FromRow)]
+        struct AlbumRow {
+            id: i64,
+            title: String,
+            normalized_title: String,
+            release: String,
+            review_comment: Option<String>,
+            edition: Option<String>,
+            edition_description: Option<String>,
+            image: Option<String>,
+            image100: Option<String>,
+            image250: Option<String>,
+            image500: Option<String>,
+            image_type: Option<String>,
+            created_at: String,
+            updated_at: String,
+        }
+        #[derive(sqlx::FromRow)]
+        struct AlbumArtistRow {
+            artist_id: i64,
+            name: String,
+            normalized_name: String,
+            order: i64,
+            separator: Option<String>,
+        }
+        #[derive(sqlx::FromRow)]
+        struct AlbumLabelRow {
+            label_id: i64,
+            catalogue_number: Option<String>,
+        }
+
+        let Some(row) = sqlx::query_as::<_, AlbumRow>(
+            "SELECT id, title, normalized_title, release, review_comment, edition, \
+             edition_description, image, image100, image250, image500, image_type, \
+             created_at, updated_at FROM albums WHERE id = ?",
+        )
+        .bind(id as i64)
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let artist_rows = sqlx::query_as::<_, AlbumArtistRow>(
+            "SELECT artist_id, name, normalized_name, \"order\", separator \
+             FROM album_artists WHERE album_id = ? ORDER BY \"order\"",
+        )
+        .bind(id as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let label_rows = sqlx::query_as::<_, AlbumLabelRow>(
+            "SELECT label_id, catalogue_number FROM album_labels WHERE album_id = ?",
+        )
+        .bind(id as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(Some(Album {
+            id: row.id,
+            title: row.title,
+            normalized_title: row.normalized_title,
+            release: row.release,
+            review_comment: row.review_comment,
+            edition: row.edition,
+            edition_description: row.edition_description,
+            album_artists: artist_rows
+                .into_iter()
+                .map(|r| AlbumArtist {
+                    artist_id: r.artist_id,
+                    name: r.name,
+                    normalized_name: r.normalized_name,
+                    order: r.order,
+                    separator: r.separator,
+                })
+                .collect(),
+            album_labels: label_rows
+                .into_iter()
+                .map(|r| AlbumLabel {
+                    label_id: r.label_id,
+                    catalogue_number: r.catalogue_number,
+                })
+                .collect(),
+            image: row.image,
+            image100: row.image100,
+            image250: row.image250,
+            image500: row.image500,
+            image_type: row.image_type,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }))
     }
 
     pub async fn prune_albums(&self, started_at_ms: i64) -> Result<()> {
