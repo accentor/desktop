@@ -1,6 +1,7 @@
 use accentor_communication::{CommunicationClient, PlayingTrack, TrackSummary};
 
 const TRACKS_PER_PAGE: u32 = 30;
+const WIDE_COVER_WIDTH: u32 = 50;
 use accentor_utils::get_socket_path;
 use anyhow::Error;
 use clap::{Parser, Subcommand};
@@ -77,7 +78,7 @@ async fn main() -> Result<(), Error> {
         Command::Track { command } => match command {
             TrackCommand::Play { track_id } => {
                 match client.play(context::current(), track_id).await? {
-                    Ok(pt) => print_playing_track(&pt),
+                    Ok(pt) => display_playing_track(&pt).await,
                     Err(msg) => anyhow::bail!(msg),
                 }
             }
@@ -118,7 +119,7 @@ async fn main() -> Result<(), Error> {
                     println!("Sync: never run");
                 }
                 match status.playing_track {
-                    Some(pt) => print_playing_track(&pt),
+                    Some(pt) => display_playing_track(&pt).await,
                     None => println!("Not playing"),
                 }
             }
@@ -181,6 +182,26 @@ fn print_playing_track(pt: &PlayingTrack) {
     println!("  by {}", pt.artists);
     println!("  on {}", pt.album);
     println!("  ({} / {})", pos, total);
+}
+
+async fn display_playing_track(pt: &PlayingTrack) {
+    if let Some(url) = &pt.cover_url {
+        let _ = render_cover(url, WIDE_COVER_WIDTH).await;
+    }
+    print_playing_track(pt);
+}
+
+async fn render_cover(url: &str, size: u32) -> anyhow::Result<()> {
+    let bytes = accentor_utils::fetch_cover(url).await?;
+    let img = image::load_from_memory(&bytes)?;
+    let cfg = viuer::Config {
+        width: Some(size),
+        absolute_offset: false,
+        ..Default::default()
+    };
+    viuer::print(&img, &cfg)?;
+    println!();
+    Ok(())
 }
 
 fn format_duration(secs: u64) -> String {

@@ -25,6 +25,7 @@ pub struct PlayingTrack {
     pub album: String,
     pub artists: String,
     pub length: Option<i64>,
+    pub cover_url: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

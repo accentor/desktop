@@ -66,37 +66,44 @@ struct AccentorServer {
 
 impl AccentorServer {
     async fn build_playing_track(&self, id: u64, position_ms: u64) -> Result<PlayingTrack, String> {
-        let (title, album, artists, length) =
-            match self.db.track(id).await.map_err(|e| e.to_string())? {
-                None => ("?".to_string(), "?".to_string(), "?".to_string(), None),
-                Some(track) => {
-                    let album_title = match self
-                        .db
-                        .album(track.album_id as u64)
-                        .await
-                        .map_err(|e| e.to_string())?
-                    {
-                        Some(a) => a.title,
-                        None => "?".to_string(),
-                    };
-                    let mut track_artists: Vec<_> =
-                        track.track_artists.iter().filter(|a| !a.hidden).collect();
-                    track_artists.sort_by_key(|a| a.order);
-                    let artists_str = track_artists
-                        .iter()
-                        .map(|a| a.name.as_str())
-                        .collect::<Vec<_>>()
-                        .join(" / ");
-                    (track.title, album_title, artists_str, track.length)
-                }
-            };
+        let Some(track) = self.db.track(id).await.map_err(|e| e.to_string())? else {
+            return Ok(PlayingTrack {
+                id,
+                position_ms,
+                title: "?".to_string(),
+                album: "?".to_string(),
+                artists: "?".to_string(),
+                length: None,
+                cover_url: None,
+            });
+        };
+        let (album, cover_url) = match self
+            .db
+            .album(track.album_id as u64)
+            .await
+            .map_err(|e| e.to_string())?
+        {
+            Some(a) => (
+                a.title,
+                a.image500.or(a.image250).or(a.image100).or(a.image),
+            ),
+            None => ("?".to_string(), None),
+        };
+        let mut track_artists: Vec<_> = track.track_artists.iter().filter(|a| !a.hidden).collect();
+        track_artists.sort_by_key(|a| a.order);
+        let artists = track_artists
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect::<Vec<_>>()
+            .join(" / ");
         Ok(PlayingTrack {
             id,
             position_ms,
-            title,
+            title: track.title,
             album,
             artists,
-            length,
+            length: track.length,
+            cover_url,
         })
     }
 

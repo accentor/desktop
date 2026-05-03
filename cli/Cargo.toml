@@ -9,6 +9,8 @@ accentor-utils = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
 comfy-table = { workspace = true }
+image = { workspace = true }
 rpassword = { workspace = true }
 tarpc = { workspace = true }
 tokio = { workspace = true }
+viuer = { workspace = true }
