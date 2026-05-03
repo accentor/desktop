@@ -1,4 +1,4 @@
-use accentor_communication::CommunicationClient;
+use accentor_communication::{CommunicationClient, PlayingTrack};
 use accentor_utils::get_socket_path;
 use anyhow::Error;
 use clap::{Parser, Subcommand};
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Error> {
             }
         }
         Command::Play { track_id } => match client.play(context::current(), track_id).await? {
-            Ok(()) => println!("Playing track {}", track_id),
+            Ok(pt) => print_playing_track(&pt),
             Err(msg) => anyhow::bail!(msg),
         },
         Command::Status => match client.status(context::current()).await? {
@@ -77,16 +77,8 @@ async fn main() -> Result<(), Error> {
                 } else {
                     println!("Sync: never run");
                 }
-                match status.playing_track_id {
-                    Some(id) => {
-                        let ms = status.playing_position_ms.unwrap_or(0);
-                        println!(
-                            "Playing track {} ({}:{:02})",
-                            id,
-                            ms / 60_000,
-                            ms / 1_000 % 60
-                        );
-                    }
+                match status.playing_track {
+                    Some(pt) => print_playing_track(&pt),
                     None => println!("Not playing"),
                 }
             }
@@ -101,4 +93,27 @@ async fn main() -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+fn print_playing_track(pt: &PlayingTrack) {
+    let pos = format_duration(pt.position_ms / 1_000);
+    let total = pt
+        .length
+        .map(|s| format_duration(s as u64))
+        .unwrap_or_else(|| "?:??".to_string());
+    println!("Playing: {}", pt.title);
+    println!("  by {}", pt.artists);
+    println!("  on {}", pt.album);
+    println!("  ({} / {})", pos, total);
+}
+
+fn format_duration(secs: u64) -> String {
+    let hours = secs / 3600;
+    let minutes = (secs % 3600) / 60;
+    let seconds = secs % 60;
+    if hours > 0 {
+        format!("{}:{:02}:{:02}", hours, minutes, seconds)
+    } else {
+        format!("{}:{:02}", minutes, seconds)
+    }
 }

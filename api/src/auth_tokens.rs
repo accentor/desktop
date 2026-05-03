@@ -11,6 +11,14 @@ pub struct AuthTokenWithToken {
     pub token: String,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct AuthToken {
+    pub id: i64,
+    pub user_id: i64,
+    pub user_agent: String,
+    pub application: Option<String>,
+}
+
 #[derive(Serialize)]
 struct CreateAuthTokenBody<'a> {
     name: &'a str,
