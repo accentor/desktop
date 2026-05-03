@@ -4,4 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+accentor-api = { workspace = true }
+anyhow = { workspace = true }
 dirs = { workspace = true }
+tokio = { workspace = true }

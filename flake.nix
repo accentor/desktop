@@ -27,8 +27,8 @@
               inherit version;
               src = ./.;
               cargoLock.lockFile = ./Cargo.lock;
-              nativeBuildInputs = [ pkgs.pkg-config ];
-              buildInputs = [ pkgs.alsa-lib ];
+              nativeBuildInputs = [ pkgs.pkg-config pkgs.gnumake ];
+              buildInputs = [ pkgs.alsa-lib pkgs.libsixel ];
             };
           };
           devShells = rec {
@@ -36,9 +36,10 @@
             accentor-desktop = pkgs.devshell.mkShell {
               name = "Accentor Desktop";
               imports = [ "${inputs.devshell}/extra/language/c.nix" "${inputs.devshell}/extra/language/rust.nix" ];
+              packages = [ pkgs.gnumake ];
               language.c = {
-                includes = with pkgs; [ openssl alsa-lib ];
-                libraries = with pkgs; [ openssl alsa-lib ];
+                includes = with pkgs; [ openssl alsa-lib libsixel ];
+                libraries = with pkgs; [ openssl alsa-lib libsixel ];
               };
             };
           };

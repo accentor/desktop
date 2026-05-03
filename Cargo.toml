@@ -15,6 +15,7 @@ clap = { version = "4", features = ["derive"] }
 comfy-table = "7"
 dirs = "6.0"
 futures = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 reqwest = { version = "0.13", features = ["json", "stream"] }
 rodio = "0.22"
 rpassword = "7"
@@ -25,3 +26,4 @@ stream-download = { version = "0.24", features = ["reqwest", "temp-storage"] }
 strum = { version = "0.28", features = ["derive"] }
 tarpc = { version = "0.37", features = ["serde-transport", "serde-transport-json", "unix"] }
 tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal"] }
+viuer = { version = "0.9", features = ["sixel"] }
