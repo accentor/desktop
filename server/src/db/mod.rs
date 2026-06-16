@@ -41,7 +41,8 @@ impl Database {
     }
 
     async fn prune_simple(&self, table: &str, started_at_ms: i64) -> Result<()> {
-        sqlx::query(&format!("DELETE FROM {table} WHERE loaded_at < ?"))
+        sqlx::query("DELETE FROM ? WHERE loaded_at < ?")
+            .bind(table)
             .bind(started_at_ms)
             .execute(&self.pool)
             .await?;
