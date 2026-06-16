@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::endpoint;
 
-#[derive(Clone, Debug, Deserialize, strum::AsRefStr, strum::EnumString)]
+#[derive(Clone, Debug, Deserialize, PartialEq, strum::AsRefStr, strum::EnumString)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum TrackArtistRole {
@@ -16,7 +16,7 @@ pub enum TrackArtistRole {
     Arranger,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct TrackArtist {
     pub artist_id: i64,
     pub role: TrackArtistRole,
@@ -26,7 +26,7 @@ pub struct TrackArtist {
     pub hidden: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Track {
     pub id: i64,
     pub title: String,

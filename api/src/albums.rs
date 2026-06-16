@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct AlbumArtist {
     pub artist_id: i64,
     pub name: String,
@@ -9,13 +9,13 @@ pub struct AlbumArtist {
     pub separator: Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct AlbumLabel {
     pub label_id: i64,
     pub catalogue_number: Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Album {
     pub id: i64,
     pub title: String,

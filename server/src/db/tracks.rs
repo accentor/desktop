@@ -242,3 +242,56 @@ impl Database {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use accentor_api::tracks::TrackArtistRole;
+
+    #[tokio::test]
+    async fn roundtrip() {
+        let (db, _dir) = crate::db::fresh().await;
+        let original = Track {
+            id: 1234,
+            title: "So What".into(),
+            normalized_title: "so what".into(),
+            number: 1,
+            album_id: 77,
+            review_comment: Some("New track".into()),
+            genre_ids: vec![7, 12],
+            codec_id: Some(2),
+            length: Some(565),
+            bitrate: Some(1411),
+            location_id: Some(3),
+            audio_file_id: Some(99),
+            track_artists: vec![
+                TrackArtist {
+                    artist_id: 9,
+                    role: TrackArtistRole::Main,
+                    order: 0,
+                    name: "Miles Davis".into(),
+                    normalized_name: "miles davis".into(),
+                    hidden: false,
+                },
+                TrackArtist {
+                    artist_id: 10,
+                    role: TrackArtistRole::Performer,
+                    order: 1,
+                    name: "John Coltrane".into(),
+                    normalized_name: "john coltrane".into(),
+                    hidden: true,
+                },
+            ],
+            filename: Some("01-so-what.flac".into()),
+            sample_rate: Some(44100),
+            bit_depth: Some(16),
+            created_at: "2024-01-01T00:00:00Z".into(),
+            updated_at: "2024-06-01T00:00:00Z".into(),
+        };
+        db.upsert_tracks(std::slice::from_ref(&original), 1_700_000_000_000)
+            .await
+            .unwrap();
+        let read_back = db.track(original.id as u64).await.unwrap().unwrap();
+        assert_eq!(original, read_back);
+    }
+}

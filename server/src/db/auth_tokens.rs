@@ -34,7 +34,52 @@ impl Database {
         Ok(())
     }
 
+    #[allow(dead_code)]
+    pub async fn auth_token(&self, id: u64) -> Result<Option<AuthToken>> {
+        #[derive(sqlx::FromRow)]
+        struct AuthTokenRow {
+            id: i64,
+            user_id: i64,
+            user_agent: String,
+            application: Option<String>,
+        }
+
+        Ok(sqlx::query_as::<_, AuthTokenRow>(
+            "SELECT id, user_id, user_agent, application FROM auth_tokens WHERE id = ?",
+        )
+        .bind(id as i64)
+        .fetch_optional(&self.pool)
+        .await?
+        .map(|r| AuthToken {
+            id: r.id,
+            user_id: r.user_id,
+            user_agent: r.user_agent,
+            application: r.application,
+        }))
+    }
+
     pub async fn prune_auth_tokens(&self, started_at_ms: i64) -> Result<()> {
         self.prune_simple("auth_tokens", started_at_ms).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn roundtrip() {
+        let (db, _dir) = crate::db::fresh().await;
+        let original = AuthToken {
+            id: 11,
+            user_id: 5,
+            user_agent: "accentord/0.1".into(),
+            application: Some("desktop".into()),
+        };
+        db.upsert_auth_tokens(std::slice::from_ref(&original), 1_700_000_000_000)
+            .await
+            .unwrap();
+        let read_back = db.auth_token(original.id as u64).await.unwrap().unwrap();
+        assert_eq!(original, read_back);
     }
 }

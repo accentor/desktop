@@ -11,7 +11,7 @@ pub struct AuthTokenWithToken {
     pub token: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct AuthToken {
     pub id: i64,
     pub user_id: i64,

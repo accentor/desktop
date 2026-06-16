@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Clone, Debug, Deserialize, strum::AsRefStr)]
+#[derive(Clone, Debug, Deserialize, PartialEq, strum::AsRefStr, strum::EnumString)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum PlaylistType {
@@ -9,7 +9,7 @@ pub enum PlaylistType {
     Track,
 }
 
-#[derive(Clone, Debug, Deserialize, strum::AsRefStr)]
+#[derive(Clone, Debug, Deserialize, PartialEq, strum::AsRefStr, strum::EnumString)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum PlaylistAccess {
@@ -18,7 +18,7 @@ pub enum PlaylistAccess {
     Secret,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Playlist {
     pub id: i64,
     pub name: String,

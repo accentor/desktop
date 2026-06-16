@@ -2,10 +2,10 @@ use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::Result;
-use sqlx::QueryBuilder;
 use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
 };
+use sqlx::{AssertSqlSafe, QueryBuilder};
 
 mod albums;
 mod artists;
@@ -41,11 +41,12 @@ impl Database {
     }
 
     async fn prune_simple(&self, table: &str, started_at_ms: i64) -> Result<()> {
-        sqlx::query("DELETE FROM ? WHERE loaded_at < ?")
-            .bind(table)
-            .bind(started_at_ms)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(AssertSqlSafe(format!(
+            "DELETE FROM {table} WHERE loaded_at < ?"
+        )))
+        .bind(started_at_ms)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 }
@@ -66,4 +67,12 @@ async fn delete_children_by_parent_ids(
         qb.build().execute(&mut *tx).await?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+pub(super) async fn fresh() -> (Database, tempfile::TempDir) {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("test.db");
+    let db = Database::open(&path).await.unwrap();
+    (db, dir)
 }

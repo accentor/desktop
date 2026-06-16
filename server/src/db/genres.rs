@@ -56,3 +56,23 @@ impl Database {
         self.prune_simple("genres", started_at_ms).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn roundtrip() {
+        let (db, _dir) = crate::db::fresh().await;
+        let original = Genre {
+            id: 7,
+            name: "Jazz".into(),
+            normalized_name: "jazz".into(),
+        };
+        db.upsert_genres(std::slice::from_ref(&original), 1_700_000_000_000)
+            .await
+            .unwrap();
+        let read_back = db.genre(original.id as u64).await.unwrap().unwrap();
+        assert_eq!(original, read_back);
+    }
+}
