@@ -1,4 +1,4 @@
-use accentor_api::playlists::Playlist;
+use accentor_api::playlists::{Playlist, PlaylistAccess, PlaylistType};
 use anyhow::Result;
 use sqlx::QueryBuilder;
 
@@ -79,6 +79,57 @@ impl Database {
         Ok(())
     }
 
+    #[allow(dead_code)]
+    pub async fn playlist(&self, id: u64) -> Result<Option<Playlist>> {
+        #[derive(sqlx::FromRow)]
+        struct PlaylistRow {
+            id: i64,
+            name: String,
+            description: Option<String>,
+            user_id: i64,
+            access: String,
+            playlist_type: String,
+            created_at: String,
+            updated_at: String,
+        }
+
+        let Some(row) = sqlx::query_as::<_, PlaylistRow>(
+            "SELECT id, name, description, user_id, access, playlist_type, \
+             created_at, updated_at FROM playlists WHERE id = ?",
+        )
+        .bind(id as i64)
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let item_id_rows: Vec<(i64,)> = sqlx::query_as(
+            "SELECT item_id FROM playlist_items WHERE playlist_id = ? ORDER BY position",
+        )
+        .bind(id as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(Some(Playlist {
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            user_id: row.user_id,
+            access: row
+                .access
+                .parse::<PlaylistAccess>()
+                .map_err(|e: strum::ParseError| anyhow::anyhow!("{e}"))?,
+            playlist_type: row
+                .playlist_type
+                .parse::<PlaylistType>()
+                .map_err(|e: strum::ParseError| anyhow::anyhow!("{e}"))?,
+            item_ids: item_id_rows.into_iter().map(|(i,)| i).collect(),
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }))
+    }
+
     pub async fn prune_playlists(&self, started_at_ms: i64) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM playlists WHERE loaded_at < ?")
@@ -92,5 +143,31 @@ impl Database {
         .await?;
         tx.commit().await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn roundtrip() {
+        let (db, _dir) = crate::db::fresh().await;
+        let original = Playlist {
+            id: 50,
+            name: "Favorite tracks".into(),
+            description: Some("Listen on repeat".into()),
+            user_id: 1,
+            access: PlaylistAccess::Personal,
+            playlist_type: PlaylistType::Track,
+            item_ids: vec![300, 100, 200],
+            created_at: "2024-01-01T00:00:00Z".into(),
+            updated_at: "2024-06-01T00:00:00Z".into(),
+        };
+        db.upsert_playlists(std::slice::from_ref(&original), 1_700_000_000_000)
+            .await
+            .unwrap();
+        let read_back = db.playlist(original.id as u64).await.unwrap().unwrap();
+        assert_eq!(original, read_back);
     }
 }

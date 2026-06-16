@@ -214,3 +214,60 @@ impl Database {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn roundtrip() {
+        let (db, _dir) = crate::db::fresh().await;
+        let original = Album {
+            id: 77,
+            title: "Kind of Blue".into(),
+            normalized_title: "kind of blue".into(),
+            release: "1959-08-17".into(),
+            review_comment: Some("New album".into()),
+            edition: Some("2009-08-17".into()),
+            edition_description: Some("50th anniversary".into()),
+            album_artists: vec![
+                AlbumArtist {
+                    artist_id: 9,
+                    name: "Miles Davis".into(),
+                    normalized_name: "miles davis".into(),
+                    order: 0,
+                    separator: Some(" & ".into()),
+                },
+                AlbumArtist {
+                    artist_id: 10,
+                    name: "John Coltrane".into(),
+                    normalized_name: "john coltrane".into(),
+                    order: 2,
+                    separator: None,
+                },
+            ],
+            album_labels: vec![
+                AlbumLabel {
+                    label_id: 42,
+                    catalogue_number: Some("CL 1355".into()),
+                },
+                AlbumLabel {
+                    label_id: 43,
+                    catalogue_number: None,
+                },
+            ],
+            image: Some("img.jpg".into()),
+            image100: Some("img100.jpg".into()),
+            image250: Some("img250.jpg".into()),
+            image500: Some("img500.jpg".into()),
+            image_type: Some("image/jpeg".into()),
+            created_at: "2024-01-01T12:34:56".into(),
+            updated_at: "2024-06-01T23:45:01".into(),
+        };
+        db.upsert_albums(std::slice::from_ref(&original), 1_700_000_000_000)
+            .await
+            .unwrap();
+        let read_back = db.album(original.id as u64).await.unwrap().unwrap();
+        assert_eq!(original, read_back);
+    }
+}

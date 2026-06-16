@@ -59,3 +59,24 @@ impl Database {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use accentor_api::users::Permission;
+
+    #[tokio::test]
+    async fn roundtrip() {
+        let (db, _dir) = crate::db::fresh().await;
+        let original = User {
+            id: 1,
+            name: "Charlotte".into(),
+            permission: Permission::Admin,
+        };
+        db.upsert_users(std::slice::from_ref(&original), 1_700_000_000_000)
+            .await
+            .unwrap();
+        let read_back = db.user(original.id).await.unwrap().unwrap();
+        assert_eq!(original, read_back);
+    }
+}

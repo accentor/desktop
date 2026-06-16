@@ -34,7 +34,52 @@ impl Database {
         Ok(())
     }
 
+    #[allow(dead_code)]
+    pub async fn play(&self, id: u64) -> Result<Option<Play>> {
+        #[derive(sqlx::FromRow)]
+        struct PlayRow {
+            id: i64,
+            played_at: String,
+            track_id: i64,
+            user_id: i64,
+        }
+
+        Ok(sqlx::query_as::<_, PlayRow>(
+            "SELECT id, played_at, track_id, user_id FROM plays WHERE id = ?",
+        )
+        .bind(id as i64)
+        .fetch_optional(&self.pool)
+        .await?
+        .map(|r| Play {
+            id: r.id,
+            played_at: r.played_at,
+            track_id: r.track_id,
+            user_id: r.user_id,
+        }))
+    }
+
     pub async fn prune_plays(&self, started_at_ms: i64) -> Result<()> {
         self.prune_simple("plays", started_at_ms).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn roundtrip() {
+        let (db, _dir) = crate::db::fresh().await;
+        let original = Play {
+            id: 101,
+            played_at: "2024-08-15T12:34:56Z".into(),
+            track_id: 1234,
+            user_id: 1,
+        };
+        db.upsert_plays(std::slice::from_ref(&original), 1_700_000_000_000)
+            .await
+            .unwrap();
+        let read_back = db.play(original.id as u64).await.unwrap().unwrap();
+        assert_eq!(original, read_back);
     }
 }
