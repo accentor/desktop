@@ -38,8 +38,8 @@
               imports = [ "${inputs.devshell}/extra/language/c.nix" "${inputs.devshell}/extra/language/rust.nix" ];
               packages = [ pkgs.gnumake ];
               language.c = {
-                includes = with pkgs; [ openssl alsa-lib libsixel ];
-                libraries = with pkgs; [ openssl alsa-lib libsixel ];
+                includes = with pkgs; [ openssl alsa-lib ];
+                libraries = with pkgs; [ openssl alsa-lib ];
               };
             };
           };

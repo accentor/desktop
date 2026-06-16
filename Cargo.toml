@@ -27,4 +27,4 @@ stream-download = { version = "0.24", features = ["reqwest", "temp-storage"] }
 strum = { version = "0.28", features = ["derive"] }
 tarpc = { version = "0.37", features = ["serde-transport", "serde-transport-json", "unix"] }
 tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal"] }
-viuer = { version = "0.11", features = ["sixel"] }
+viuer = { version = "0.11", features = ["icy_sixel"] }
