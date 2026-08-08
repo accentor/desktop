@@ -5,6 +5,7 @@ const WIDE_COVER_WIDTH: u32 = 50;
 use accentor_utils::get_socket_path;
 use anyhow::Error;
 use clap::{Parser, Subcommand};
+use comfy_table::presets::UTF8_FULL;
 use tarpc::{client, context, tokio_serde::formats::Json};
 
 #[derive(Parser)]
@@ -149,9 +150,8 @@ fn print_track(t: &TrackSummary) {
 }
 
 fn print_tracks_table(tracks: &[TrackSummary]) {
-    use comfy_table::presets::UTF8_FULL;
     let mut table = comfy_table::Table::new();
-    table.load_preset(UTF8_FULL).set_header(vec![
+    table.load_style(UTF8_FULL).set_header(vec![
         "ID", "#", "Title", "Album", "Artists", "Genres", "Length",
     ]);
     for t in tracks {
