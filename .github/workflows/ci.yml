@@ -39,7 +39,7 @@ jobs:
           endpoint: https://attic.chvp.be
           cache: chvp
           token: '${{ secrets.ATTIC_AUTH_TOKEN }}'
-      - run: nix develop --command cargo fmt --all -- --check
+      - run: nix build -L .#checks.x86_64-linux.cargo-fmt
 
   clippy:
     name: cargo clippy
@@ -56,7 +56,7 @@ jobs:
           endpoint: https://attic.chvp.be
           cache: chvp
           token: '${{ secrets.ATTIC_AUTH_TOKEN }}'
-      - run: nix develop --command cargo clippy --workspace --all-targets -- -D warnings
+      - run: nix build -L .#checks.x86_64-linux.cargo-clippy
 
   test:
     name: cargo test
