@@ -27,5 +27,15 @@
           }
         )
         inputs.nixpkgs.legacyPackages;
+      checks = builtins.mapAttrs
+        (system: pkgs':
+          let
+            pkgs = pkgs'.extend (self: super: { accentor-desktop = inputs.self.packages.${system}.default; });
+          in
+        {
+          cargo-fmt = pkgs.callPackage ./checks/cargo-fmt.nix {};
+          cargo-clippy = pkgs.callPackage ./checks/cargo-clippy.nix {};
+        })
+        inputs.nixpkgs.legacyPackages;
     };
 }
