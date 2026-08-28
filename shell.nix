@@ -3,6 +3,7 @@
 , alsa-lib
 , gnumake
 , nixpkgs-fmt
+, rust-analyzer
 , openssl
 }:
 
@@ -23,7 +24,7 @@ devshell.mkShell {
       command = ''cargo run --bin accentord -- "$@"'';
     }
   ];
-  packages = [ gnumake nixpkgs-fmt ];
+  packages = [ gnumake nixpkgs-fmt rust-analyzer ];
   language.c = {
     includes = [ openssl alsa-lib ];
     libraries = [ openssl alsa-lib ];
