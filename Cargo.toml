@@ -13,7 +13,7 @@ accentor-utils = { path = "utils" }
 anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
 comfy-table = "8"
-dirs = "6.0"
+dirs = "7.0"
 futures = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 reqwest = { version = "0.13", features = ["json", "stream"] }
