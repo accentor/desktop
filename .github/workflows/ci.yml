@@ -12,15 +12,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - name: Install nix
+        uses: NixOS/nix-installer-action@main
         with:
-          extra_nix_config: |
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
             experimental-features = nix-command flakes
       - name: Attic
         uses: ryanccn/attic-action@v0
         with:
           endpoint: https://attic.chvp.be
-          cache: chvp
+          cache: accentor
           token: '${{ secrets.ATTIC_AUTH_TOKEN }}'
       - run: nix build .#default --print-build-logs
 
@@ -29,15 +31,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - name: Install nix
+        uses: NixOS/nix-installer-action@main
         with:
-          extra_nix_config: |
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
             experimental-features = nix-command flakes
       - name: Attic
         uses: ryanccn/attic-action@v0
         with:
           endpoint: https://attic.chvp.be
-          cache: chvp
+          cache: accentor
           token: '${{ secrets.ATTIC_AUTH_TOKEN }}'
       - run: nix build -L .#checks.x86_64-linux.cargo-fmt
 
@@ -46,15 +50,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - name: Install nix
+        uses: NixOS/nix-installer-action@main
         with:
-          extra_nix_config: |
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
             experimental-features = nix-command flakes
       - name: Attic
         uses: ryanccn/attic-action@v0
         with:
           endpoint: https://attic.chvp.be
-          cache: chvp
+          cache: accentor
           token: '${{ secrets.ATTIC_AUTH_TOKEN }}'
       - run: nix build -L .#checks.x86_64-linux.cargo-clippy
 
@@ -63,14 +69,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - name: Install nix
+        uses: NixOS/nix-installer-action@main
         with:
-          extra_nix_config: |
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
             experimental-features = nix-command flakes
       - name: Attic
         uses: ryanccn/attic-action@v0
         with:
           endpoint: https://attic.chvp.be
-          cache: chvp
+          cache: accentor
           token: '${{ secrets.ATTIC_AUTH_TOKEN }}'
       - run: nix develop --command cargo test --workspace --all-targets
