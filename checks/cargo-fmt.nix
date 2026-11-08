@@ -1,12 +1,12 @@
 {
   accentor-desktop,
-  rustPackages
+  rustPackages,
 }:
 
 accentor-desktop.overrideAttrs (old: {
   name = "accentor-desktop-fmt-check";
 
-  nativeBuildInputs = (old.nativeBuildInputs or []) ++ [
+  nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
     rustPackages.rustfmt
   ];
 
