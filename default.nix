@@ -4,6 +4,7 @@
   alsa-lib,
   gnumake,
   pkg-config,
+  sqlite,
 }:
 
 let
@@ -37,5 +38,8 @@ rustPlatform.buildRustPackage {
     pkg-config
     gnumake
   ];
-  buildInputs = [ alsa-lib ];
+  buildInputs = [
+    alsa-lib
+    sqlite
+  ];
 }
