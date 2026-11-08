@@ -1,12 +1,12 @@
 {
   accentor-desktop,
-  rustPackages
+  rustPackages,
 }:
 
 accentor-desktop.overrideAttrs (old: {
   name = "accentor-desktop-clippy-check";
 
-  nativeBuildInputs = (old.nativeBuildInputs or []) ++ [
+  nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
     rustPackages.clippy
   ];
 

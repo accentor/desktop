@@ -1,15 +1,19 @@
-{ devshell
-, inputs
-, alsa-lib
-, gnumake
-, nixpkgs-fmt
-, rust-analyzer
-, openssl
+{
+  devshell,
+  inputs,
+  alsa-lib,
+  gnumake,
+  nixfmt,
+  rust-analyzer,
+  openssl,
 }:
 
 devshell.mkShell {
   name = "Accentor Desktop";
-  imports = [ "${inputs.devshell}/extra/language/c.nix" "${inputs.devshell}/extra/language/rust.nix" ];
+  imports = [
+    "${inputs.devshell}/extra/language/c.nix"
+    "${inputs.devshell}/extra/language/rust.nix"
+  ];
   commands = [
     {
       name = "accentor-cli";
@@ -24,9 +28,19 @@ devshell.mkShell {
       command = ''cargo run --bin accentord -- "$@"'';
     }
   ];
-  packages = [ gnumake nixpkgs-fmt rust-analyzer ];
+  packages = [
+    gnumake
+    nixfmt
+    rust-analyzer
+  ];
   language.c = {
-    includes = [ openssl alsa-lib ];
-    libraries = [ openssl alsa-lib ];
+    includes = [
+      openssl
+      alsa-lib
+    ];
+    libraries = [
+      openssl
+      alsa-lib
+    ];
   };
 }

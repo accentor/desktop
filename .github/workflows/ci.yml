@@ -81,4 +81,4 @@ jobs:
           endpoint: https://attic.chvp.be
           cache: accentor
           token: '${{ secrets.ATTIC_AUTH_TOKEN }}'
-      - run: nix develop --command cargo test --workspace --all-targets
+      - run: nix develop ./dev --command cargo test --workspace --all-targets
